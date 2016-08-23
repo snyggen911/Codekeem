@@ -20,7 +20,6 @@ LPDIRECT3DTEXTURE9 Red;
 LPDIRECT3DTEXTURE9 Green;
 LPDIRECT3DTEXTURE9 Yellow;
 LPDIRECT3DTEXTURE9 Blue;
-LPDIRECT3DTEXTURE9 Orange;
 bool bOnce = true;
 
 HRESULT __stdcall DrawIndexedPrimitiveHook(LPDIRECT3DDEVICE9 Device, D3DPRIMITIVETYPE Type, INT BaseVertexIndex, UINT MinVertexIndex, UINT NumVertices, UINT startIndex, UINT primCount)
@@ -34,53 +33,60 @@ HRESULT __stdcall DrawIndexedPrimitiveHook(LPDIRECT3DDEVICE9 Device, D3DPRIMITIV
 
 	if (bOnce)
 	{
-		//GenerateTexture(Device, &Black, BLACK);
-		GenerateTexture(Device, &Blue, BLUE);
-		GenerateTexture(Device, &Orange, ORANGE);
-		//GenerateTexture(Device, &Purple, PURPLE);
-		//GenerateTexture(Device, &White, WHITE);
-		GenerateTexture(Device, &Yellow, YELLOW);
-		//GenerateTexture(Device, &Teal, TEAL);
-		GenerateTexture(Device, &Red, RED);
-		GenerateTexture(Device, &Green, GREEN);
-
+		GenerateTexture(Device, &Red, D3DCOLOR_ARGB(255, 220, 20, 60));
+		GenerateTexture(Device, &Yellow, D3DCOLOR_ARGB(255, 255, 255, 0));
+		GenerateTexture(Device, &Green, D3DCOLOR_ARGB(255, 154, 205, 50));
+		GenerateTexture(Device, &Blue, D3DCOLOR_ARGB(255, 70, 130, 180));
 		bOnce = false;
 	}
 
 	if (EnemyHands | FriendHands)
 	{
-		Device->SetRenderState(D3DRS_FOGENABLE, FALSE);
-		Device->SetRenderState(D3DRS_ZENABLE, FALSE);
-		Device->SetTexture(0, Green);
 
+		Device->SetTexture(0, NULL);
+		Device->SetTexture(0, Red);//apply new shader
 
+		Device->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);
+		Device->SetRenderState(D3DRS_ZFUNC, D3DCMP_NEVER);
+		//pDevice->SetTexture(0, Orange);
+		
 		OrigDrawIndexedPrimitive(Device, Type, BaseVertexIndex, MinVertexIndex, NumVertices, startIndex, primCount);
-
-		Device->SetRenderState(D3DRS_ZENABLE, TRUE);
-		Device->SetRenderState(D3DRS_FOGENABLE, FALSE);
-		Device->SetTexture(0, Red);
+		Device->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
+		Device->SetRenderState(D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
+		//pDevice->SetTexture(0, Blue);
+		Device->SetTexture(0, Blue);//apply new shader
 	}
 
 	if (chams1)
 	{
+		Device->SetTexture(0, NULL);
+		Device->SetTexture(0, Red);//apply new shader
+
 		Device->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);
 		Device->SetRenderState(D3DRS_ZFUNC, D3DCMP_NEVER);
-		Device->SetTexture(0, Green);
+		//pDevice->SetTexture(0, Orange);
+
 		OrigDrawIndexedPrimitive(Device, Type, BaseVertexIndex, MinVertexIndex, NumVertices, startIndex, primCount);
 		Device->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
 		Device->SetRenderState(D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
-		Device->SetTexture(0, Blue);
+		//pDevice->SetTexture(0, Blue);
+		Device->SetTexture(0, Blue);//apply new shader
 	}
 
 	if (chams2)
 	{
+		Device->SetTexture(0, NULL);
+		Device->SetTexture(0, Green);//apply new shader
+
 		Device->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);
 		Device->SetRenderState(D3DRS_ZFUNC, D3DCMP_NEVER);
-		Device->SetTexture(0, Green);
+		//pDevice->SetTexture(0, Orange);
+
 		OrigDrawIndexedPrimitive(Device, Type, BaseVertexIndex, MinVertexIndex, NumVertices, startIndex, primCount);
 		Device->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
 		Device->SetRenderState(D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
-		Device->SetTexture(0, Blue);
+		//pDevice->SetTexture(0, Blue);
+		Device->SetTexture(0, Yellow);//apply new shader
 	}
 
 	if (NumVertices == 20 && primCount == 10) { /* Le NoSky */
@@ -98,7 +104,6 @@ HRESULT __stdcall ResetHook(IDirect3DDevice9* Device, D3DPRESENT_PARAMETERS* Par
 		Green->Release();
 		Yellow->Release();
 		Blue->Release();
-		Orange->Release();
 	}
 	bOnce = true;
 	return OrigReset(Device, Params);
@@ -119,7 +124,7 @@ DWORD WINAPI Start(LPVOID keemer) {
 		Sleep(100);
 	}
 
-
+	DWORD* table;
 	DWORD TempAdd = FindPattern(D3d9Base, 0x128000, (BYTE*) "\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx");
 	while (!TempAdd)
 	{
@@ -128,8 +133,8 @@ DWORD WINAPI Start(LPVOID keemer) {
 	}
 	D3d9VTable = (DWORD*) *(DWORD*)(TempAdd + 2);
 
-	OrigDrawIndexedPrimitive = (DrawIndexedPrimitive_t)DetourFunc((BYTE*)D3d9VTable[82], (BYTE*)DrawIndexedPrimitiveHook, 5);
-	OrigReset = (Reset_t)DetourFunc((BYTE*)D3d9VTable[16], (BYTE*)ResetHook, 5);
+	OrigDrawIndexedPrimitive = (DrawIndexedPrimitive_t)DetourFunction((PBYTE)D3d9VTable[82], (PBYTE)DrawIndexedPrimitiveHook, 5);
+	OrigReset = (Reset_t)DetourFunction((BYTE*)D3d9VTable[16], (BYTE*)ResetHook, 5);
 	
 	AllocConsole();
 	freopen("CONIN$", "r", stdin); 

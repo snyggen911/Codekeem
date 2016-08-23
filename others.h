@@ -320,24 +320,37 @@ HRESULT GenerateTexture(IDirect3DDevice9 *pD3Ddev, IDirect3DTexture9 **ppD3Dtex,
 	return S_OK;
 }
 
-void* DetourFunc(PBYTE src, const PBYTE dst, const int len)
-{
-	DWORD dwback;
+
+void* DetourFunction(BYTE* src, const BYTE* dst, const int len) {
 	BYTE* jmp = (BYTE*)malloc(len + 5);
-	VirtualProtect(jmp, len + 5, PAGE_EXECUTE_READWRITE, &dwback);
-	VirtualProtect(src, len, PAGE_READWRITE, &dwback);
+	DWORD dwBack;
+
+	//Basic Virtual protect...
+	VirtualProtect(src, len, PAGE_EXECUTE_READWRITE, &dwBack);
+
+	//Copy the bytes from src to the jump position...
 	memcpy(jmp, src, len);
+
 	jmp += len;
+
+	//Write the JMP
 	jmp[0] = 0xE9;
+
+	//Write the position to where we're gonna jump
 	*(DWORD*)(jmp + 1) = (DWORD)(src + len - jmp) - 5;
+
 	src[0] = 0xE9;
 	*(DWORD*)(src + 1) = (DWORD)(dst - src) - 5;
+
+	//Fill the rest of the bytes with NOPs
 	for (int i = 5; i < len; i++)
-	{
 		src[i] = 0x90;
-	}
-	VirtualProtect(src, len, dwback, &dwback);
+
+	//Restore the permissions
+	VirtualProtect(src, len, dwBack, &dwBack);
+
 	return (jmp - len);
+
 }
 
 bool DataCompare(const BYTE* Data, const BYTE* HexMask, const char* MatchMask)
@@ -362,6 +375,24 @@ DWORD FindPattern(DWORD Address, DWORD Len, BYTE* HexMask, char* MatchMask)
 		}
 	}
 	return NULL;
+}
+
+static void XQZ_Wallhack(IDirect3DDevice9* device, LPDIRECT3DTEXTURE9 tex1, LPDIRECT3DTEXTURE9 tex2, D3DPRIMITIVETYPE Type, INT BaseVertexIndex, UINT MinVertexIndex, UINT NumVertices, UINT startIndex, UINT primCount)
+{
+	DWORD dwOldZEnable;
+	
+
+	device->SetRenderState(D3DRS_ZENABLE, D3DZB_FALSE);
+	device->SetRenderState(D3DRS_ZFUNC, D3DCMP_NEVER);
+
+	device->SetTexture(0, NULL);
+	device->SetTexture(0, tex1);
+
+	device->DrawIndexedPrimitive(Type, BaseVertexIndex, MinVertexIndex, NumVertices, startIndex, primCount);
+
+	device->SetRenderState(D3DRS_ZENABLE, D3DZB_TRUE);
+	device->SetRenderState(D3DRS_ZFUNC, D3DCMP_LESSEQUAL);
+	device->SetTexture(0, tex2);
 }
 
 #define RED D3DCOLOR_ARGB(255, 255, 0, 0)
