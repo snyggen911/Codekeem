@@ -285,19 +285,6 @@
 #define chams1        ((MarinesAssault) || (MarinesGunnremen) || (MarinesSniper) || (Marines) || (Marines2) || (SAS) || (SAS2) || (SASSniper) || (SASGunnermen) || (SASAssualt) )
 #define chams2        ((OpforAssualt) || (OpforGunnermen) || (OpforSniper) || (Opfor) || (Spetz) || (Spetz2) || (SPETZ_SNIPER) || (SpetzGunnermen) || (SpetzAssualt) )
 
-
-HRESULT GenerateShader(IDirect3DDevice9* Device, IDirect3DPixelShader9** Shader, float r, float g, float b)
-{
-	char ShaderAsmBuf[256];
-	ID3DXBuffer* ShaderBuf = NULL;
-	sprintf_s(ShaderAsmBuf, "ps_3_0\ndef c0, %f, %f, %f, %f\nmov oC0,c0", r, g, b, 1.0f);
-	if (FAILED(D3DXAssembleShader(ShaderAsmBuf, (strlen(ShaderAsmBuf) + 1), NULL, NULL, 0, &ShaderBuf, NULL)))
-	{
-		return E_FAIL;
-	}
-	return Device->CreatePixelShader((const DWORD*)ShaderBuf->GetBufferPointer(), Shader);
-}
-
 HRESULT GenerateTexture(IDirect3DDevice9 *pD3Ddev, IDirect3DTexture9 **ppD3Dtex, DWORD colour32)
 {
 	if (FAILED(pD3Ddev->CreateTexture(8, 8, 1, 0, D3DFMT_A4R4G4B4, D3DPOOL_MANAGED, ppD3Dtex, NULL)))
@@ -320,37 +307,20 @@ HRESULT GenerateTexture(IDirect3DDevice9 *pD3Ddev, IDirect3DTexture9 **ppD3Dtex,
 	return S_OK;
 }
 
-
-void* DetourFunction(BYTE* src, const BYTE* dst, const int len) {
-	BYTE* jmp = (BYTE*)malloc(len + 5);
+void *DetourFunction(BYTE *src, const BYTE *dst, const int len) {
+	BYTE *jmp = (BYTE*)malloc(len + 5);
 	DWORD dwBack;
 
-	//Basic Virtual protect...
 	VirtualProtect(src, len, PAGE_EXECUTE_READWRITE, &dwBack);
-
-	//Copy the bytes from src to the jump position...
 	memcpy(jmp, src, len);
-
 	jmp += len;
-
-	//Write the JMP
 	jmp[0] = 0xE9;
-
-	//Write the position to where we're gonna jump
 	*(DWORD*)(jmp + 1) = (DWORD)(src + len - jmp) - 5;
-
 	src[0] = 0xE9;
 	*(DWORD*)(src + 1) = (DWORD)(dst - src) - 5;
-
-	//Fill the rest of the bytes with NOPs
-	for (int i = 5; i < len; i++)
-		src[i] = 0x90;
-
-	//Restore the permissions
+	for (int i = 5; i<len; i++)  src[i] = 0x90;
 	VirtualProtect(src, len, dwBack, &dwBack);
-
 	return (jmp - len);
-
 }
 
 bool DataCompare(const BYTE* Data, const BYTE* HexMask, const char* MatchMask)
@@ -448,4 +418,139 @@ static void DrawBox(int x, int y, int w, int h, D3DCOLOR BoxColor, D3DCOLOR Bord
 
 typedef HRESULT(__stdcall* DrawIndexedPrimitive_t)(IDirect3DDevice9*, D3DPRIMITIVETYPE, INT, UINT, UINT, UINT, UINT);
 typedef HRESULT(__stdcall* Reset_t)(IDirect3DDevice9*, D3DPRESENT_PARAMETERS*);
-typedef HRESULT(WINAPI* EndScene_t)(LPDIRECT3DDEVICE9 pDevice);
+typedef HRESULT(__stdcall* EndScene_t)(IDirect3DDevice9*);
+
+/* All Scenes */
+
+/*
+Source: https://github.com/arvydas/blinkstick-client/blob/master/Capture/Hook/D3D9.cs
+
+*/
+enum scenes {
+SCENE_QueryInterface = 0,
+SCENE_AddRef = 1,
+SCENE_Release = 2,
+SCENE_TestCooperativeLevel = 3,
+SCENE_GetAvailableTextureMem = 4,
+SCENE_EvictManagedResources = 5,
+SCENE_GetDirect3D = 6,
+SCENE_GetDeviceCaps = 7,
+SCENE_GetDisplayMode = 8,
+SCENE_GetCreationParameters = 9,
+SCENE_SetCursorProperties = 10,
+SCENE_SetCursorPosition = 11,
+SCENE_ShowCursor = 12,
+SCENE_CreateAdditionalSwapChain = 13,
+SCENE_GetSwapChain = 14,
+SCENE_GetNumberOfSwapChains = 15,
+SCENE_Reset = 16,
+SCENE_Present = 17,
+SCENE_GetBackBuffer = 18,
+SCENE_GetRasterStatus = 19,
+SCENE_SetDialogBoxMode = 20,
+SCENE_SetGammaRamp = 21,
+SCENE_GetGammaRamp = 22,
+SCENE_CreateTexture = 23,
+SCENE_CreateVolumeTexture = 24,
+SCENE_CreateCubeTexture = 25,
+SCENE_CreateVertexBuffer = 26,
+SCENE_CreateIndexBuffer = 27,
+SCENE_CreateRenderTarget = 28,
+SCENE_CreateDepthStencilSurface = 29,
+SCENE_UpdateSurface = 30,
+SCENE_UpdateTexture = 31,
+SCENE_GetRenderTargetData = 32,
+SCENE_GetFrontBufferData = 33,
+SCENE_StretchRect = 34,
+SCENE_ColorFill = 35,
+SCENE_CreateOffscreenPlainSurface = 36,
+SCENE_SetRenderTarget = 37,
+SCENE_GetRenderTarget = 38,
+SCENE_SetDepthStencilSurface = 39,
+SCENE_GetDepthStencilSurface = 40,
+SCENE_BeginScene = 41,
+SCENE_EndScene = 42,
+SCENE_Clear = 43,
+SCENE_SetTransform = 44,
+SCENE_GetTransform = 45,
+SCENE_MultiplyTransform = 46,
+SCENE_SetViewport = 47,
+SCENE_GetViewport = 48,
+SCENE_SetMaterial = 49,
+SCENE_GetMaterial = 50,
+SCENE_SetLight = 51,
+SCENE_GetLight = 52,
+SCENE_LightEnable = 53,
+SCENE_GetLightEnable = 54,
+SCENE_SetClipPlane = 55,
+SCENE_GetClipPlane = 56,
+SCENE_SetRenderState = 57,
+SCENE_GetRenderState = 58,
+SCENE_CreateStateBlock = 59,
+SCENE_BeginStateBlock = 60,
+SCENE_EndStateBlock = 61,
+SCENE_SetClipStatus = 62,
+SCENE_GetClipStatus = 63,
+SCENE_GetTexture = 64,
+SCENE_SetTexture = 65,
+SCENE_GetTextureStageState = 66,
+SCENE_SetTextureStageState = 67,
+SCENE_GetSamplerState = 68,
+SCENE_SetSamplerState = 69,
+SCENE_ValidateDevice = 70,
+SCENE_SetPaletteEntries = 71,
+SCENE_GetPaletteEntries = 72,
+SCENE_SetCurrentTexturePalette = 73,
+SCENE_GetCurrentTexturePalette = 74,
+SCENE_SetScissorRect = 75,
+SCENE_GetScissorRect = 76,
+SCENE_SetSoftwareVertexProcessing = 77,
+SCENE_GetSoftwareVertexProcessing = 78,
+SCENE_SetNPatchMode = 79,
+SCENE_GetNPatchMode = 80,
+SCENE_DrawPrimitive = 81,
+SCENE_DrawIndexedPrimitive = 82,
+SCENE_DrawPrimitiveUP = 83,
+SCENE_DrawIndexedPrimitiveUP = 84,
+SCENE_ProcessVertices = 85,
+SCENE_CreateVertexDeclaration = 86,
+SCENE_SetVertexDeclaration = 87,
+SCENE_GetVertexDeclaration = 88,
+SCENE_SetFVF = 89,
+SCENE_GetFVF = 90,
+SCENE_CreateVertexShader = 91,
+SCENE_SetVertexShader = 92,
+SCENE_GetVertexShader = 93,
+SCENE_SetVertexShaderConstantF = 94,
+SCENE_GetVertexShaderConstantF = 95,
+SCENE_SetVertexShaderConstantI = 96,
+SCENE_GetVertexShaderConstantI = 97,
+SCENE_SetVertexShaderConstantB = 98,
+SCENE_GetVertexShaderConstantB = 99,
+SCENE_SetStreamSource = 100,
+SCENE_GetStreamSource = 101,
+SCENE_SetStreamSourceFreq = 102,
+SCENE_GetStreamSourceFreq = 103,
+SCENE_SetIndices = 104,
+SCENE_GetIndices = 105,
+SCENE_CreatePixelShader = 106,
+SCENE_SetPixelShader = 107,
+SCENE_GetPixelShader = 108,
+SCENE_SetPixelShaderConstantF = 109,
+SCENE_GetPixelShaderConstantF = 110,
+SCENE_SetPixelShaderConstantI = 111,
+SCENE_GetPixelShaderConstantI = 112,
+SCENE_SetPixelShaderConstantB = 113,
+SCENE_GetPixelShaderConstantB = 114,
+SCENE_DrawRectPatch = 115,
+SCENE_DrawTriPatch = 116,
+SCENE_DeletePatch = 117,
+SCENE_CreateQuery = 118
+};
+
+
+namespace codekeem {
+	bool secret1 = false;
+	bool secret2 = false;
+	bool secret3 = false;
+}
