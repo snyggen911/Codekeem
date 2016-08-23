@@ -9,17 +9,18 @@
 #pragma comment(lib, "d3dx9.lib")
 using namespace std;
 
-typedef HRESULT(__stdcall* DrawIndexedPrimitive_t)(IDirect3DDevice9*, D3DPRIMITIVETYPE, INT, UINT, UINT, UINT, UINT);
-typedef HRESULT(__stdcall* Reset_t)(IDirect3DDevice9*, D3DPRESENT_PARAMETERS*);
 
 DrawIndexedPrimitive_t OrigDrawIndexedPrimitive;
 Reset_t OrigReset;
+EndScene_t OrigEndscene;
 
 
 LPDIRECT3DTEXTURE9 Red;
 LPDIRECT3DTEXTURE9 Green;
 LPDIRECT3DTEXTURE9 Yellow;
 LPDIRECT3DTEXTURE9 Blue;
+LPDIRECT3DTEXTURE9 Orange;
+
 bool bOnce = true;
 
 HRESULT __stdcall DrawIndexedPrimitiveHook(LPDIRECT3DDEVICE9 Device, D3DPRIMITIVETYPE Type, INT BaseVertexIndex, UINT MinVertexIndex, UINT NumVertices, UINT startIndex, UINT primCount)
@@ -33,10 +34,11 @@ HRESULT __stdcall DrawIndexedPrimitiveHook(LPDIRECT3DDEVICE9 Device, D3DPRIMITIV
 
 	if (bOnce)
 	{
-		GenerateTexture(Device, &Red, D3DCOLOR_ARGB(255, 220, 20, 60));
-		GenerateTexture(Device, &Yellow, D3DCOLOR_ARGB(255, 255, 255, 0));
-		GenerateTexture(Device, &Green, D3DCOLOR_ARGB(255, 154, 205, 50));
-		GenerateTexture(Device, &Blue, D3DCOLOR_ARGB(255, 70, 130, 180));
+		GenerateTexture(Device, &Red, D3DCOLOR_RGBA(155, 0, 0, 255));
+		GenerateTexture(Device, &Yellow, D3DCOLOR_RGBA(255, 255, 255, 255));
+		GenerateTexture(Device, &Green, D3DCOLOR_RGBA(0, 255, 0, 255));
+		GenerateTexture(Device, &Blue, D3DCOLOR_RGBA(0, 0, 255, 255));
+		GenerateTexture(Device, &Orange, D3DCOLOR_RGBA(255, 155, 0, 255));
 		bOnce = false;
 	}
 
@@ -109,33 +111,25 @@ HRESULT __stdcall ResetHook(IDirect3DDevice9* Device, D3DPRESENT_PARAMETERS* Par
 	return OrigReset(Device, Params);
 }
 
+HRESULT WINAPI EndSceneHook(IDirect3DDevice9* Device) {
+	DrawBox(20, 40, 60, 80, D3DCOLOR_RGBA(255, 0, 0, 255), D3DCOLOR_RGBA(0, 255, 0, 255), Device);
+	return OrigEndscene(Device);
+}
 
-DWORD D3d9Base;
-DWORD* D3d9VTable;
-
-wchar_t DllPath[512];
-wchar_t PathBuffer[512];
 DWORD WINAPI Start(LPVOID keemer) {
-	
-	D3d9Base = (DWORD)GetModuleHandle("d3d9.dll");
-	while (!D3d9Base)
-	{
-		D3d9Base = (DWORD)GetModuleHandle("d3d9.dll");
-		Sleep(100);
+	DWORD   hD3D, adr, *vtbl;
+	hD3D = 0;
+	do {
+		hD3D = (DWORD)GetModuleHandleA("d3d9.dll");
+		Sleep(10);
+	} while (!hD3D);
+	adr = FindPattern(hD3D, 0x128000, (PBYTE)"\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx");
+	if (adr) {
+		memcpy(&vtbl, (void *)(adr + 2), 4);
+		OrigReset = (Reset_t)DetourFunction((PBYTE)vtbl[16], (PBYTE)ResetHook, 5);
+		OrigEndscene = (EndScene_t)DetourFunction((PBYTE)vtbl[42], (PBYTE)EndSceneHook, 5);
+		OrigDrawIndexedPrimitive = (DrawIndexedPrimitive_t)DetourFunction((PBYTE)vtbl[82], (PBYTE)DrawIndexedPrimitiveHook, 5);
 	}
-
-	DWORD* table;
-	DWORD TempAdd = FindPattern(D3d9Base, 0x128000, (BYTE*) "\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx");
-	while (!TempAdd)
-	{
-		TempAdd = FindPattern(D3d9Base, 0x128000, (BYTE*) "\xC7\x06\x00\x00\x00\x00\x89\x86\x00\x00\x00\x00\x89\x86", "xx????xx????xx");
-		Sleep(100);
-	}
-	D3d9VTable = (DWORD*) *(DWORD*)(TempAdd + 2);
-
-	OrigDrawIndexedPrimitive = (DrawIndexedPrimitive_t)DetourFunction((PBYTE)D3d9VTable[82], (PBYTE)DrawIndexedPrimitiveHook, 5);
-	OrigReset = (Reset_t)DetourFunction((BYTE*)D3d9VTable[16], (BYTE*)ResetHook, 5);
-	
 	AllocConsole();
 	freopen("CONIN$", "r", stdin); 
 	freopen("CONOUT$", "w", stdout);

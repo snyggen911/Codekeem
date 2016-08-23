@@ -412,3 +412,40 @@ static void XQZ_Wallhack(IDirect3DDevice9* device, LPDIRECT3DTEXTURE9 tex1, LPDI
 #define BROWN D3DCOLOR_ARGB(255, 77, 46, 38)
 #define SHIT D3DCOLOR_ARGB(255, 74, 38, 38)
 #define PURPLE D3DCOLOR_ARGB(255, 255, 0, 255)
+
+static void PrintText(CONST CHAR* pString, int x, int y, D3DCOLOR col, ID3DXFont *font)
+{
+	RECT FontRect = { x, y, x + 500, y + 30 };
+	font->DrawTextA(NULL, pString, -1, &FontRect, DT_LEFT | DT_WORDBREAK, col);
+}
+
+static void FillRGB(int x, int y, int w, int h, D3DCOLOR color, IDirect3DDevice9* pDevice)
+{
+	if (w < 0)w = 1;
+	if (h < 0)h = 1;
+	if (x < 0)x = 1;
+	if (y < 0)y = 1;
+
+	D3DRECT rec = { x, y, x + w, y + h };
+	pDevice->Clear(1, &rec, D3DCLEAR_TARGET, color, 0, 0);
+}
+
+static void DrawBorder(int x, int y, int w, int h, int px, D3DCOLOR BorderColor, IDirect3DDevice9* pDevice)
+{
+	FillRGB(x, (y + h - px), w, px, BorderColor, pDevice);
+	FillRGB(x, y, px, h, BorderColor, pDevice);
+	FillRGB(x, y, w, px, BorderColor, pDevice);
+	FillRGB((x + w - px), y, px, h, BorderColor, pDevice);
+}
+
+static void DrawBox(int x, int y, int w, int h, D3DCOLOR BoxColor, D3DCOLOR BorderColor, IDirect3DDevice9* pDevice)
+{
+	FillRGB(x, y, w, h, BoxColor, pDevice);
+	DrawBorder(x, y, w, h, 1, BorderColor, pDevice);
+}
+
+
+
+typedef HRESULT(__stdcall* DrawIndexedPrimitive_t)(IDirect3DDevice9*, D3DPRIMITIVETYPE, INT, UINT, UINT, UINT, UINT);
+typedef HRESULT(__stdcall* Reset_t)(IDirect3DDevice9*, D3DPRESENT_PARAMETERS*);
+typedef HRESULT(WINAPI* EndScene_t)(LPDIRECT3DDEVICE9 pDevice);
